@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Virtual Body | Spatial tracking studio</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brandmark">✳</span>
+          <div>
+            VIRTUAL<span>BODY</span>
+            <small>SPATIAL TRACKING STUDIO</small>
+          </div>
+        </div>
+
+        <div class="side-label">WORKSPACE</div>
+        <div class="nav">◈ &nbsp; Live tracking <span>01</span></div>
+
+        <div class="side-bottom">
+          <b>● &nbsp; LOCAL PROCESSING</b>
+          <p>Your camera stays yours.</p>
+        </div>
+
+        <div class="side-foot">VIRTUAL BODY <span>V 2.0</span></div>
+      </aside>
+
+      <main>
+        <header>
+          <div>
+            <div class="eyebrow">SPATIAL INTERFACE <span>/</span> LIVE TRACKING</div>
+            <h1>Body tracking <span>studio</span></h1>
+            <p>Real-time movement, translated into a digital dimension.</p>
+          </div>
+
+          <div class="header-actions">
+            <div class="privacy">✦ &nbsp; PRIVATE BY DESIGN</div>
+            <button id="fullscreen" class="fullscreen" aria-label="Toggle fullscreen" title="Toggle fullscreen">⛶</button>
+          </div>
+        </header>
+
+        <div class="content">
+          <section>
+            <div class="viewport-head">
+              <div>
+                <i class="dot"></i> <b>LIVE VIEWPORT</b>
+                <span class="slash">/</span>
+                <span id="viewLabel">3D SPACE</span>
+              </div>
+
+              <div class="modes">
+                <button id="mode3d" class="active">◈ &nbsp; 3D view</button>
+                <button id="modeCamera">▣ &nbsp; Camera</button>
+              </div>
+            </div>
+
+            <div class="viewport" id="viewport">
+              <video id="video" autoplay playsinline muted></video>
+              <canvas id="scene"></canvas>
+
+              <div class="corner tl"></div>
+              <div class="corner tr"></div>
+              <div class="corner bl"></div>
+              <div class="corner br"></div>
+
+              <div class="overlay-top">
+                <span>● &nbsp; <span id="viewportStatus">AWAITING INPUT</span></span>
+                <span id="resolution">— × —</span>
+              </div>
+
+              <div id="empty" class="empty">
+                <div class="hand-icon">
+                  <svg viewBox="0 0 100 100" fill="none">
+                    <circle cx="50" cy="50" r="45" stroke="currentColor" stroke-opacity=".3" stroke-dasharray="2 5"/>
+                    <circle cx="50" cy="23" r="9" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M50 32v29M29 43l21-8 21 8M50 61 36 83M50 61 64 83" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <circle cx="50" cy="35" r="2" fill="currentColor"/>
+                    <circle cx="50" cy="61" r="2" fill="currentColor"/>
+                  </svg>
+                </div>
+                <h2>Your space is ready</h2>
+                <p>Start your camera and bring your body into view<br />to begin tracking in real time.</p>
+                <button id="emptyStart">Start tracking &nbsp; ↗</button>
+              </div>
+
+              <div class="overlay-bottom">
+                <span>✧ &nbsp; POSE-DRIVEN RENDER</span>
+                <span>33 POINTS / PERSON</span>
+              </div>
+            </div>
+
+            <div class="under">
+              <div>
+                <span class="under-icon">◉</span>
+                <div>
+                  <b>Real-time tracking</b>
+                  <small>Powered by MediaPipe + Three.js</small>
+                </div>
+              </div>
+              <div class="tip"><b>TIP</b> &nbsp; Keep visible body parts well lit</div>
+            </div>
+
+            <div class="metrics">
+              <div class="metric">
+                <div>TRACKING STATUS <span>◉</span></div>
+                <strong><i id="statusDot"></i><span id="status">Standby</span></strong>
+                <small id="statusDetail">Camera is inactive</small>
+              </div>
+
+              <div class="metric">
+                <div>FRAME RATE <span>⌁</span></div>
+                <strong><span id="fps">—</span><em>FPS</em></strong>
+                <small>Rendering performance</small>
+              </div>
+
+              <div class="metric">
+                <div>PEOPLE DETECTED <span>✳</span></div>
+                <strong><span id="hands">0</span><em>/ 2</em></strong>
+                <small id="handedness">No person in view</small>
+              </div>
+
+              <div class="metric">
+                <div>VISIBLE PARTS <span>⌘</span></div>
+                <strong class="gesture" id="gesture">—</strong>
+                <small>Based on landmark confidence</small>
+              </div>
+            </div>
+          </section>
+
+          <aside class="panel">
+            <div class="panel-title">
+              <b>⌘ &nbsp; Control panel</b>
+              <span>•••</span>
+            </div>
+            <div class="panel-sub">YOUR TRACKING WORKSPACE</div>
+
+            <div class="section-title"><span>01</span> CAMERA SOURCE</div>
+            <label for="camera">Video input &nbsp; <span class="muted">ⓘ</span></label>
+            <select id="camera">
+              <option value="">Default camera</option>
+            </select>
+
+            <button class="start" id="start"><span>◉</span> Start camera <b>↗</b></button>
+            <button class="stop" id="stop" disabled><span>■</span> Stop camera</button>
+
+            <hr />
+
+            <div class="section-title"><span>02</span> TRACKING SETTINGS</div>
+
+            <div class="setting">
+              <label for="sensitivity">Tracking sensitivity</label>
+              <output id="sensitivityValue">Balanced</output>
+            </div>
+            <input type="range" id="sensitivity" min="0" max="100" value="55" />
+            <div class="range-labels">
+              <span>SMOOTHER</span>
+              <span>MORE RESPONSIVE</span>
+            </div>
+            <p class="hint">Adjust the balance between smoothness and responsiveness.</p>
+
+            <div class="setting">
+              <label for="color">Body color</label>
+              <span id="colorHex">#68DDFF</span>
+            </div>
+
+            <div class="colors">
+              <button class="swatch active" data-color="#68ddff" style="--color:#68ddff" aria-label="Cyan"></button>
+              <button class="swatch" data-color="#a990ff" style="--color:#a990ff" aria-label="Purple"></button>
+              <button class="swatch" data-color="#ff80c8" style="--color:#ff80c8" aria-label="Pink"></button>
+              <button class="swatch" data-color="#91f5b0" style="--color:#91f5b0" aria-label="Green"></button>
+              <label class="custom" title="Choose a custom color">+
+                <input type="color" id="color" value="#68ddff" aria-label="Custom hand color" />
+              </label>
+            </div>
+
+            <hr />
+
+            <div class="privacy-card">
+              <span>◇</span>
+              <div>
+                <b>Built with privacy in mind</b>
+                <p>Video is processed locally in your browser. Your footage is never uploaded or stored.</p>
+              </div>
+            </div>
+
+            <div class="panel-foot">
+              <span>● &nbsp; SYSTEM READY</span>
+              <span>✳</span>
+            </div>
+          </aside>
+        </div>
+
+        <footer>
+          <span>© 2026 VIRTUAL BODY &nbsp; / &nbsp; A NEW WAY TO INTERACT</span>
+          <span>MADE FOR THE SPACE BETWEEN REAL & DIGITAL &nbsp; ✳</span>
+        </footer>
+      </main>
+    </div>
+
+    <div id="message" class="message" role="alert" hidden></div>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
