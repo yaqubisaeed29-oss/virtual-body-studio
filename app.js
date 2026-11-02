@@ -1,3 +1,5 @@
+import { FilesetResolver, PoseLandmarker } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/vision_bundle.js';
+
 const video = document.getElementById('video');
 const canvas = document.getElementById('scene');
 const ctx = canvas.getContext('2d');
@@ -26,6 +28,16 @@ const handednessNode = document.getElementById('handedness');
 const gestureNode = document.getElementById('gesture');
 const message = document.getElementById('message');
 
+const poseConnections = [
+  [0, 1], [0, 2], [1, 3], [2, 4], [3, 5], [4, 6],
+  [5, 7], [7, 9], [6, 8], [8, 10], [5, 6],
+  [5, 11], [6, 12], [11, 12], [11, 13], [12, 14],
+  [13, 15], [14, 16], [15, 17], [16, 18], [15, 19],
+  [16, 20], [19, 21], [20, 22], [11, 23], [12, 24],
+  [23, 25], [24, 26], [25, 27], [26, 28], [27, 29],
+  [28, 30], [29, 31], [30, 32], [23, 24], [11, 12]
+];
+
 const state = {
   stream: null,
   running: false,
@@ -35,6 +47,9 @@ const state = {
   sensitivity: Number(sensitivity.value),
   activeColor: '#68ddff',
   timer: null,
+  poseLandmarker: null,
+  isPoseReady: false,
+  rafId: null,
 };
 
 function showMessage(text) {
@@ -79,9 +94,6 @@ function setStatusText(label, detail, tone = 'idle') {
   if (tone === 'live') {
     statusDot.style.background = '#8af3ba';
     statusDot.style.boxShadow = '0 0 14px rgba(138, 243, 186, 0.9)';
-  } else if (tone === 'warning') {
-    statusDot.style.background = '#ffd166';
-    statusDot.style.boxShadow = '0 0 14px rgba(255, 209, 102, 0.9)';
   } else {
     statusDot.style.background = '#ffd166';
     statusDot.style.boxShadow = '0 0 14px rgba(255, 209, 102, 0.9)';
@@ -117,6 +129,33 @@ async function populateCameraList() {
   });
 }
 
+async function ensurePoseLandmarker() {
+  if (state.poseLandmarker) {
+    return state.poseLandmarker;
+  }
+
+  try {
+    const vision = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm');
+    state.poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+      },
+      runningMode: 'VIDEO',
+      numPoses: 1,
+      minPoseDetectionConfidence: 0.5,
+      minPosePresenceConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    });
+
+    state.isPoseReady = true;
+    return state.poseLandmarker;
+  } catch (error) {
+    console.error('Pose landmarker failed to initialize:', error);
+    showMessage('Pose engine failed to load');
+    throw error;
+  }
+}
+
 async function startCamera() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     showMessage('Camera access is unavailable in this browser.');
@@ -140,9 +179,8 @@ async function startCamera() {
     startBtn.disabled = true;
     stopBtn.disabled = false;
     setStatusText('Tracking', 'Camera active and live', 'live');
-    handednessNode.textContent = 'Person detected';
-    handsNode.textContent = '1';
-    gestureNode.textContent = '18 / 33';
+
+    await ensurePoseLandmarker();
 
     video.onloadedmetadata = () => {
       const width = video.videoWidth || 1280;
@@ -155,9 +193,9 @@ async function startCamera() {
     renderFrame();
     showMessage('Camera started');
   } catch (error) {
-    showMessage('Camera permission was denied');
-    setStatusText('Standby', 'Camera is inactive', 'idle');
     console.error(error);
+    showMessage('Camera permission was denied or the pose engine could not load');
+    setStatusText('Standby', 'Camera is inactive', 'idle');
   }
 }
 
@@ -175,29 +213,69 @@ function stopCamera() {
   startBtn.disabled = false;
   stopBtn.disabled = true;
   setStatusText('Standby', 'Camera is inactive', 'idle');
-  handednessNode.textContent = 'No person in view';
   handsNode.textContent = '0';
+  handednessNode.textContent = 'No person in view';
   gestureNode.textContent = '—';
   showMessage('Camera stopped');
 }
 
-function renderFrame() {
-  if (!state.running) return;
+function drawPoseLandmarks(landmarks) {
+  if (!landmarks || !landmarks.length) return;
 
-  const now = performance.now();
-  const delta = now - state.lastFrame;
+  const width = canvas.width || 1280;
+  const height = canvas.height || 720;
 
-  if (delta > 0) {
-    state.fps = Math.round(1000 / delta);
-    fpsNode.textContent = String(state.fps);
+  ctx.save();
+  ctx.clearRect(0, 0, width, height);
+  ctx.strokeStyle = state.activeColor;
+  ctx.lineWidth = 2.5;
+  ctx.shadowBlur = 18;
+  ctx.shadowColor = state.activeColor;
+  ctx.fillStyle = state.activeColor;
+
+  for (const [from, to] of poseConnections) {
+    const p1 = landmarks[from];
+    const p2 = landmarks[to];
+
+    if (!p1 || !p2) continue;
+
+    const visibility1 = typeof p1.visibility === 'number' ? p1.visibility : 1;
+    const visibility2 = typeof p2.visibility === 'number' ? p2.visibility : 1;
+
+    if (visibility1 < 0.2 && visibility2 < 0.2) continue;
+
+    const x1 = p1.x * width;
+    const y1 = p1.y * height;
+    const x2 = p2.x * width;
+    const y2 = p2.y * height;
+
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
   }
 
-  state.lastFrame = now;
+  landmarks.forEach((point, index) => {
+    if (!point) return;
+    const visible = typeof point.visibility === 'number' ? point.visibility : 1;
+    if (visible < 0.2) return;
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const w = canvas.width;
-  const h = canvas.height;
+    const x = point.x * width;
+    const y = point.y * height;
 
+    ctx.beginPath();
+    ctx.arc(x, y, index === 0 ? 4.5 : 3.2, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  ctx.restore();
+}
+
+function drawFallbackSkeleton() {
+  const w = canvas.width || 1280;
+  const h = canvas.height || 720;
+
+  ctx.clearRect(0, 0, w, h);
   ctx.save();
   ctx.strokeStyle = state.activeColor;
   ctx.lineWidth = 2.5;
@@ -209,8 +287,7 @@ function renderFrame() {
   const scale = Math.min(w, h) * 0.22;
 
   const landmarkPairs = [
-    [0, 1], [1, 2], [2, 3], [3, 7],
-    [0, 4], [4, 5], [5, 6], [6, 8],
+    [0, 1], [1, 2], [2, 3], [3, 7], [0, 4], [4, 5], [5, 6], [6, 8],
     [9, 10], [11, 12], [11, 13], [13, 15], [15, 17], [15, 16], [17, 19], [19, 15],
     [12, 14], [14, 16], [11, 23], [12, 24], [23, 24], [23, 25], [25, 27], [27, 29], [29, 31],
     [24, 26], [26, 28], [28, 30], [30, 32], [23, 11], [24, 12], [11, 12]
@@ -242,6 +319,51 @@ function renderFrame() {
   }
 
   ctx.restore();
+}
+
+function renderFrame() {
+  if (!state.running) return;
+
+  const now = performance.now();
+  const delta = now - state.lastFrame;
+
+  if (delta > 0) {
+    state.fps = Math.round(1000 / delta);
+    fpsNode.textContent = String(state.fps);
+  }
+
+  state.lastFrame = now;
+
+  const width = canvas.width || 1280;
+  const height = canvas.height || 720;
+
+  ctx.clearRect(0, 0, width, height);
+
+  if (state.poseLandmarker && state.isPoseReady && video.readyState >= 2) {
+    const detection = state.poseLandmarker.detectForVideo(video, now);
+
+    if (detection && detection.landmarks && detection.landmarks.length) {
+      const landmarks = detection.landmarks[0];
+      const visible = landmarks.filter((point) => {
+        const visibility = typeof point.visibility === 'number' ? point.visibility : 1;
+        return visibility >= 0.2;
+      }).length;
+
+      handsNode.textContent = visible > 0 ? '1' : '0';
+      handednessNode.textContent = visible > 0 ? 'Person detected' : 'No person in view';
+      gestureNode.textContent = `${visible} / 33`;
+      drawPoseLandmarks(landmarks);
+      setStatusText('Tracking', 'Live pose detection active', 'live');
+    } else {
+      handsNode.textContent = '0';
+      handednessNode.textContent = 'No person in view';
+      gestureNode.textContent = '—';
+      setStatusText('Tracking', 'Waiting for body in frame', 'warning');
+      drawFallbackSkeleton();
+    }
+  } else {
+    drawFallbackSkeleton();
+  }
 
   requestAnimationFrame(renderFrame);
 }
